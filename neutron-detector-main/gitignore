@@ -1,0 +1,45 @@
+# --- Build output (never commit or sync these) ---
+build/
+Build/
+cmake-build-*/
+
+# CMake-generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!materials/*.cmake
+
+# Compiled objects, libraries, executables
+*.o
+*.obj
+*.so
+*.dylib
+*.a
+*.exe
+sim
+
+# --- GEANT4 / ROOT run output ---
+# ROOT output files from simulation runs
+*.root
+
+# GEANT4 scratch / visualization dumps
+*.wrl
+*.heprep
+*.prim
+*.HepRepGeometry*
+G4cerr.txt
+G4Worker*.txt
+
+# --- Editor / OS noise ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# --- Google Drive / sync conflict files ---
+*conflicted copy*
+*conflict*
