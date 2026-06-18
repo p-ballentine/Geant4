@@ -1,0 +1,25 @@
+{
+    "_note": "Candidate organic active-layer materials, kept for future studies. This file is NOT loaded by the simulation (only detector-stack.json is parsed). To study one of these as an active layer, copy its block into detector-stack.json and set its thickness/lateral_mm/position for that study. Thickness and lateral_mm here are placeholders (200 nm x 2.8 mm, matching a PEDOT-like sense layer); adjust per study. These were previously being built unintentionally as 1 um parasitic layers because the JSON parser ignored // comments; they are now removed from the active stack.",
+
+    "4MHB": {
+        "density": 1.38,
+        "thickness": 0.0002,
+        "lateral_mm": 2.8,
+        "composition": { "C": 8, "H": 8, "O": 3 },
+        "color": { "r": 0.8, "g": 0.2, "b": 0.2, "a": 0.8 }
+    },
+    "4HCB": {
+        "density": 1.22,
+        "thickness": 0.0002,
+        "lateral_mm": 2.8,
+        "composition": { "C": 7, "H": 5, "O": 1, "N": 1 },
+        "color": { "r": 0.2, "g": 0.8, "b": 0.2, "a": 0.8 }
+    },
+    "TIPS_pentacene": {
+        "density": 1.104,
+        "thickness": 0.0002,
+        "lateral_mm": 2.8,
+        "composition": { "C": 44, "H": 54, "Si": 2 },
+        "color": { "r": 0.5, "g": 0.5, "b": 0.5, "a": 0.8 }
+    }
+}

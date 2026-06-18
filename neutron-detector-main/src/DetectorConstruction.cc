@@ -121,6 +121,7 @@ void DetectorConstruction::LoadMaterialsFromJSON()
 
         G4double density = 1.0;
         G4double thickness = 1.0;
+        G4double lateral = 10.0;   // square side length [mm]; default = detector footprint
         std::map<std::string, double> composition;
         G4double cr = 0.5, cg = 0.5, cb = 0.5, ca = 0.8;
 
@@ -142,6 +143,16 @@ void DetectorConstruction::LoadMaterialsFromJSON()
                 materialData[thicknessPos] == '\t' || materialData[thicknessPos] == '\n')) thicknessPos++;
             size_t thicknessEnd = materialData.find_first_of(",}", thicknessPos);
             thickness = std::stod(materialData.substr(thicknessPos, thicknessEnd - thicknessPos));
+        }
+
+        // Extract lateral size (square side length, mm); optional, defaults to footprint
+        size_t lateralPos = materialData.find("\"lateral_mm\"");
+        if (lateralPos != std::string::npos) {
+            lateralPos = materialData.find(":", lateralPos) + 1;
+            while (lateralPos < materialData.length() && (materialData[lateralPos] == ' ' ||
+                materialData[lateralPos] == '\t' || materialData[lateralPos] == '\n')) lateralPos++;
+            size_t lateralEnd = materialData.find_first_of(",}", lateralPos);
+            lateral = std::stod(materialData.substr(lateralPos, lateralEnd - lateralPos));
         }
 
         // Extract composition
@@ -213,6 +224,7 @@ void DetectorConstruction::LoadMaterialsFromJSON()
         matInfo.material = material;
         matInfo.logicalVolume = nullptr;
         matInfo.thickness = thickness * mm;
+        matInfo.lateralSize = lateral * mm;
         matInfo.name = G4String(materialName);
         matInfo.color = G4Colour(cr, cg, cb, ca);
 
@@ -245,7 +257,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
 {
     G4bool checkOverlaps = true;
 
-    // Calculate world size based on total detector thickness
+    // Size the world to enclose the largest layer laterally and the full stack in z.
+    G4double maxLateral = 0.;
+    for (const auto& m : fDetectorMaterials) maxLateral = std::max(maxLateral, m.lateralSize);
+    if (maxLateral <= 0.) maxLateral = 10 * mm;
+    fWorldSizeXY = maxLateral + 2 * mm;
     fWorldSizeZ = fTotalDetectorThickness + 4 * mm;
 
     // World volume
@@ -269,7 +285,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
         // Move from bottom edge of this layer to its center
         currentZ += matInfo.thickness / 2.0;
 
-        G4Box* solid = new G4Box(matInfo.name, fWorldSizeXY / 2, fWorldSizeXY / 2, matInfo.thickness / 2);
+        G4Box* solid = new G4Box(matInfo.name, matInfo.lateralSize / 2, matInfo.lateralSize / 2, matInfo.thickness / 2);
         G4LogicalVolume* logical = new G4LogicalVolume(solid, matInfo.material, matInfo.name);
 
         new G4PVPlacement(nullptr, G4ThreeVector(0, 0, currentZ), logical,
@@ -321,7 +337,7 @@ void DetectorConstruction::DumpGeometry(const G4String& fileName) const
         << std::setw(4) << "idx" << std::setw(18) << "name"
         << std::setw(16) << "material"
         << std::right << std::setw(14) << "density[g/cm3]"
-        << std::setw(14) << "thick[mm]"
+        << std::setw(12) << "thick[mm]" << std::setw(13) << "lateral[mm]"
         << std::setw(12) << "z_min[mm]" << std::setw(12) << "z_max[mm]" << "\n";
 
     G4double currentZ = -fTotalDetectorThickness / 2.0;
@@ -337,7 +353,8 @@ void DetectorConstruction::DumpGeometry(const G4String& fileName) const
             << std::setw(16) << m.material->GetName()
             << std::right << std::fixed
             << std::setw(14) << std::setprecision(4) << m.material->GetDensity()/(g/cm3)
-            << std::setw(14) << std::setprecision(4) << m.thickness/mm
+            << std::setw(12) << std::setprecision(4) << m.thickness/mm
+            << std::setw(13) << std::setprecision(4) << m.lateralSize/mm
             << std::setw(12) << std::setprecision(4) << zMin/mm
             << std::setw(12) << std::setprecision(4) << zMax/mm << "\n";
     }

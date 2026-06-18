@@ -33,6 +33,7 @@ struct MaterialInfo {
     G4Material* material;
     G4LogicalVolume* logicalVolume;
     G4double thickness;
+    G4double lateralSize;   // square layer side length (x = y)
     G4String name;
     G4Colour color;
 };

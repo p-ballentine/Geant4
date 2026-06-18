@@ -1,7 +1,24 @@
 {
+    "PEN": {
+        "density": 1.36,
+        "thickness": 0.125,
+        "lateral_mm": 10.0,
+        "composition": {
+            "C": 14,
+            "H": 10,
+            "O": 4
+        },
+        "color": {
+            "r": 0.85,
+            "g": 0.80,
+            "b": 0.55,
+            "a": 0.35
+        }
+    },
     "PEDOT_PSS": {
         "density": 1.011,
-        "thickness": 10,
+        "thickness": 0.0002,
+        "lateral_mm": 2.8,
         "composition": {
             "C": 14,
             "H": 14,
@@ -13,53 +30,23 @@
             "r": 0.2,
             "g": 0.2,
             "b": 0.8,
-            "a": 0.8
+            "a": 0.9
         }
-    }//,
-    //"4MHB": {
-    //    "density": 1.38,
-    //    "thickness": 0.001,
-    //    "composition": {
-    //        "C": 8,
-    //        "H": 8,
-    //        "O": 3
-    //    },
-    //    "color": {
-    //        "r": 0.8,
-    //        "g": 0.2,
-    //        "b": 0.2,
-    //        "a": 0.8
-    //    }
-    //},
-    //"4HCB": {
-    //    "density": 1.22,
-    //    "thickness": 0.001,
-    //    "composition": {
-    //        "C": 7,
-    //        "H": 5,
-    //        "O": 1,
-    //        "N": 1
-    //    },
-    //    "color": {
-    //        "r": 0.2,
-    //        "g": 0.8,
-    //        "b": 0.2,
-    //        "a": 0.8
-    //    }
-    //},
-    //"TIPS_pentacene": {
-    //    "density": 1.104,
-    //    "thickness": 0.001,
-    //    "composition": {
-    //        "C": 44,
-    //        "H": 54,
-    //        "Si": 2
-    //    },
-    //    "color": {
-    //        "r": 0.5,
-    //        "g": 0.5,
-    //        "b": 0.5,
-    //        "a": 0.8
-    //    }
-    //}
+    },
+    "Parylene_C": {
+        "density": 1.289,
+        "thickness": 0.00045,
+        "lateral_mm": 10.0,
+        "composition": {
+            "C": 8,
+            "H": 7,
+            "Cl": 1
+        },
+        "color": {
+            "r": 0.3,
+            "g": 0.8,
+            "b": 0.4,
+            "a": 0.5
+        }
+    }
 }
