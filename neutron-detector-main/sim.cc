@@ -13,7 +13,7 @@
 #include "ActionInitialization.hh"
 
 int main(int argc, char** argv) {
-    G4UIExecutive *ui;
+    G4UIExecutive *ui = nullptr;
 
     // Run manager
     auto runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);

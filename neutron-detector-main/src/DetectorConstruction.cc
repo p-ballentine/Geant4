@@ -121,7 +121,7 @@ void DetectorConstruction::LoadMaterialsFromJSON()
         G4double density = 1.0;
         G4double thickness = 1.0;
         std::map<std::string, double> composition;
-        G4double r = 0.5, g = 0.5, b = 0.5, a = 0.8;
+        G4double cr = 0.5, cg = 0.5, cb = 0.5, ca = 0.8;
 
         // Extract density
         size_t densityPos = materialData.find("\"density\"");
@@ -200,20 +200,20 @@ void DetectorConstruction::LoadMaterialsFromJSON()
                 return 0.5;
                 };
 
-            r = getColorVal("r");
-            g = getColorVal("g");
-            b = getColorVal("b");
-            a = getColorVal("a");
+            cr = getColorVal("r");
+            cg = getColorVal("g");
+            cb = getColorVal("b");
+            ca = getColorVal("a");
         }
 
-        G4Material* material = CreateMaterialFromJSON(G4String(materialName), composition, density * g / cm3);
+        G4Material* material = CreateMaterialFromJSON(G4String(materialName), composition, density * (g / cm3));
 
         MaterialInfo matInfo;
         matInfo.material = material;
         matInfo.logicalVolume = nullptr;
         matInfo.thickness = thickness * mm;
         matInfo.name = G4String(materialName);
-        matInfo.color = G4Colour(r, g, b, a);
+        matInfo.color = G4Colour(cr, cg, cb, ca);
 
         fDetectorMaterials.push_back(matInfo);
         fTotalDetectorThickness += matInfo.thickness;
