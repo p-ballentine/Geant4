@@ -56,9 +56,13 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
     private:
         void DefineMaterials();
         void LoadMaterialsFromJSON();
-        G4Material* CreateMaterialFromJSON(const G4String& materialName, 
+        G4Material* CreateMaterialFromJSON(const G4String& materialName,
                                          const std::map<std::string, double>& composition,
                                          G4double density);
+
+        // Write the actual constructed geometry (layers, materials, densities,
+        // thicknesses, z-extents) to a text file for the analysis/output record.
+        void DumpGeometry(const G4String& fileName = "detector_geometry.txt") const;
 
         // Materials
         G4ExtendedMaterial* fB4CMaterial;
