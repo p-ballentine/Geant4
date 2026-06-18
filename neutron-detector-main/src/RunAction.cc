@@ -36,6 +36,12 @@ RunAction::RunAction() : G4UserRunAction() {
     analysisManager->CreateNtupleDColumn("B4CEnergyDeposit"); // 1
     analysisManager->CreateNtupleDColumn("GaNEnergyDeposit"); // 2
     analysisManager->FinishNtuple();
+
+    // Histogram of the sampled source neutron energy (H1 id 0), for validating
+    // that the generator reproduces the input PuBe spectrum. 0-12 MeV covers
+    // the fast PuBe range (peak ~3 MeV, max ~11 MeV).
+    analysisManager->CreateH1("SourceEnergy", "Sampled source neutron energy (MeV)",
+                              240, 0., 12.);
 }
 
 RunAction::~RunAction() {}
