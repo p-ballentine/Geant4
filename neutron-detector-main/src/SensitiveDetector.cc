@@ -29,21 +29,13 @@ G4bool SensitiveDetector::ProcessHits(G4Step* aStep, G4TouchableHistory*) {
     if (!volume) return false;
     // END TEST
 
-    G4int eventID = G4RunManager::GetRunManager()->GetCurrentEvent()->GetEventID();
-    G4double energyDeposit = aStep->GetTotalEnergyDeposit();
-
-    // G4StepPoint* preStepPoint = aStep->GetPreStepPoint();
-    G4ThreeVector pos = preStepPoint->GetPosition();
-    G4double globalTime = preStepPoint->GetGlobalTime();
-
-    auto analysisManager = G4AnalysisManager::Instance();
-    analysisManager->FillNtupleIColumn(0, eventID);
-    analysisManager->FillNtupleDColumn(1, energyDeposit);
-    analysisManager->FillNtupleDColumn(2, pos.x());
-    analysisManager->FillNtupleDColumn(3, pos.y());
-    analysisManager->FillNtupleDColumn(4, pos.z());
-    analysisManager->FillNtupleDColumn(5, globalTime);
-    analysisManager->AddNtupleRow();
-
+    // The StepData ntuple is populated by SteppingAction for energy-depositing
+    // steps, with full per-step information (volume, particle, process, etc.).
+    // Filling it here for every hit -- including the many zero-deposit transit
+    // steps through the sensitive volumes -- duplicated those rows and bloated
+    // the output enormously (~96% of rows, ~20x the file size at high statistics)
+    // without adding anything the analysis uses. This sensitive detector is kept
+    // attached (so the layers are registered as sensitive) but no longer writes
+    // to the ntuple.
     return true;
 }

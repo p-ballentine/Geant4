@@ -20,19 +20,8 @@ SteppingAction::SteppingAction(DetectorConstruction* detector, EventAction* even
 SteppingAction::~SteppingAction() {}
 
 void SteppingAction::UserSteppingAction(const G4Step* step) {
-    // --- DEBUG START ---
-    G4String volName = step->GetPreStepPoint()->GetTouchableHandle()->GetVolume()->GetName();
-    G4String matName = step->GetPreStepPoint()->GetMaterial()->GetName();
     G4double edep = step->GetTotalEnergyDeposit();
 
-    // Only print if there is energy deposited, to avoid spamming 
-    if (edep > 0) {
-        G4cout << "DEBUG: Hit in Volume: " << volName
-            << " | Material: " << matName
-            << " | Energy: " << edep << G4endl;
-    }
-    // --- DEBUG END ---
-    
     // BEGIN TEST
     if (!step) return;
 
@@ -112,20 +101,6 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     analysisManager->FillNtupleSColumn(0, 12, creatorProcess);
     analysisManager->AddNtupleRow(0);
 
-    // Log important neutron interactions
-    if (particleName == "neutron") {
-        if (processName == "nCapture") {
-            G4cout << "B-10 neutron capture detected at position: " 
-                   << postStepPoint->GetPosition() 
-                   << " with energy deposit: " << edep/keV << " keV" << G4endl;
-        } else if (processName == "hadElastic") {
-            G4cout << "Neutron elastic scattering at: " 
-                   << postStepPoint->GetPosition() << G4endl;
-        } else if (processName == "neutronInelastic") {
-            G4cout << "Neutron inelastic scattering at: " 
-                   << postStepPoint->GetPosition() << G4endl;
-        }
-    }
 }
 
 G4bool SteppingAction::IsInB4CVolume(const G4Step* step) {
