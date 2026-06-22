@@ -16,6 +16,8 @@ PrimaryGenerator::PrimaryGenerator()
     : G4VUserPrimaryGeneratorAction(),
       fParticleGun(nullptr),
       fMessenger(nullptr),
+      fNeutron(nullptr),
+      fGamma(nullptr),
       fSourceMode(SourceMode::PuBe),
       fMonoEnergy(2.5*MeV),
       fSpectrumFile("data/pube_bare_LLNL_PNL_lethargy.txt")
@@ -23,8 +25,9 @@ PrimaryGenerator::PrimaryGenerator()
     fParticleGun = new G4ParticleGun(1);
 
     G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
-    G4ParticleDefinition* neutron = particleTable->FindParticle("neutron");
-    fParticleGun->SetParticleDefinition(neutron);
+    fNeutron = particleTable->FindParticle("neutron");
+    fGamma   = particleTable->FindParticle("gamma");
+    fParticleGun->SetParticleDefinition(fNeutron);
     fParticleGun->SetParticleEnergy(fMonoEnergy);
 
     fMessenger = new PrimaryGeneratorMessenger(this);
@@ -45,6 +48,8 @@ void PrimaryGenerator::SetSourceMode(const G4String& name)
         fSourceMode = SourceMode::Mono;
     } else if (name == "pube") {
         fSourceMode = SourceMode::PuBe;
+    } else if (name == "cs137") {
+        fSourceMode = SourceMode::Cs137;
     } else {
         G4Exception("PrimaryGenerator::SetSourceMode", "BadMode", JustWarning,
                     ("Unknown source type '" + name + "'; keeping current mode.").c_str());
@@ -161,13 +166,22 @@ void PrimaryGenerator::GeneratePrimaries(G4Event* event)
     G4double y = (G4UniformRand() - 0.5) * 8*mm;
     G4double z = -1*mm;
 
-    G4double energy = SampleEnergy();
+    // Select particle type and energy for the chosen source.
+    G4ParticleDefinition* particle = fNeutron;
+    G4double energy = fMonoEnergy;
+    if (fSourceMode == SourceMode::Cs137) {
+        particle = fGamma;
+        energy = 661.7*keV;          // Cs-137 / Ba-137m gamma line
+    } else if (fSourceMode == SourceMode::PuBe) {
+        energy = SampleEnergy();
+    }
 
+    fParticleGun->SetParticleDefinition(particle);
     fParticleGun->SetParticlePosition(G4ThreeVector(x, y, z));
     fParticleGun->SetParticleMomentumDirection(G4ThreeVector(0, 0, 1));
     fParticleGun->SetParticleEnergy(energy);
 
-    // Record the sampled source energy for spectrum validation (H1 id 0).
+    // Record the source energy for spectrum validation (H1 id 0).
     G4AnalysisManager::Instance()->FillH1(0, energy/MeV);
 
     fParticleGun->GeneratePrimaryVertex(event);

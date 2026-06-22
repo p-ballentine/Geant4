@@ -7,17 +7,19 @@
 
 class G4ParticleGun;
 class G4Event;
+class G4ParticleDefinition;
 class PrimaryGeneratorMessenger;
 
-// Neutron primary generator with a selectable energy distribution:
-//   - Mono: fixed monoenergetic neutron (kept for validation / cross-checks)
-//   - PuBe: energy sampled per event from a tabulated PuBe spectrum
+// Primary generator with a selectable source:
+//   - Mono:  fixed monoenergetic neutron (validation / cross-checks)
+//   - PuBe:  neutron energy sampled per event from a tabulated PuBe spectrum
+//   - Cs137: 661.7 keV monoenergetic gamma (Cs-137 gamma response)
 // The mode and parameters are controllable at run time via /source/ macro
 // commands (see PrimaryGeneratorMessenger).
 class PrimaryGenerator : public G4VUserPrimaryGeneratorAction
 {
 public:
-    enum class SourceMode { Mono, PuBe };
+    enum class SourceMode { Mono, PuBe, Cs137 };
 
     PrimaryGenerator();
     virtual ~PrimaryGenerator();
@@ -37,6 +39,8 @@ private:
 
     G4ParticleGun* fParticleGun;
     PrimaryGeneratorMessenger* fMessenger;
+    G4ParticleDefinition* fNeutron;   // cached particle definitions
+    G4ParticleDefinition* fGamma;
 
     SourceMode fSourceMode;
     G4double   fMonoEnergy;
