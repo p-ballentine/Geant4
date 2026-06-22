@@ -34,8 +34,11 @@ SOURCE_LABEL = "PuBe (LLNL/PNL)"
 # Pretty labels for figures (internal G4 volume names stay PEN / PEDOT_PSS / Parylene_C).
 DISPLAY_NAMES = {"PEN": "PEN", "PEDOT_PSS": "PEDOT:PSS", "Parylene_C": "Parylene-C"}
 
-OUT_BARS   = os.path.join(HERE, "layer_deposition_breakdown.png")
-OUT_ACTIVE = os.path.join(HERE, "active_region_deposition.png")
+OUT_BARS     = os.path.join(HERE, "layer_deposition_breakdown.png")
+OUT_ACTIVE   = os.path.join(HERE, "active_region_deposition.png")
+OUT_PEREVENT = os.path.join(HERE, "per_event_all_layers.png")
+
+LAYER_COLORS = {"PEN": "goldenrod", "PEDOT_PSS": "navy", "Parylene_C": "seagreen"}
 
 
 def load_geometry(path):
@@ -149,6 +152,29 @@ def make_layer_breakdown(step_df, n_primaries, source_label, out_path):
     return dict(zip(LAYERS, totals))
 
 
+def make_per_event_all_layers(step_df, out_path):
+    """Per-event energy deposition for all three layers, overlaid (log-log)."""
+    bins = np.logspace(-1, 4, 51)   # 0.1 keV to 10 MeV
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    for L in LAYERS:
+        per_event = step_df[step_df["Volume"] == L].groupby("EventID")["Edep"].sum()
+        vals_kev = (per_event[per_event > 0] * 1000.0).to_numpy()
+        if len(vals_kev):
+            ax.hist(vals_kev, bins=bins, histtype="step", lw=2, color=LAYER_COLORS[L],
+                    label=f"{DISPLAY_NAMES.get(L, L)}  ({len(vals_kev)} events)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Energy deposited per event (keV)")
+    ax.set_ylabel("Events / bin")
+    ax.set_title("Per-event energy deposition by layer")
+    ax.legend()
+    ax.grid(alpha=0.2, which="both")
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=130)
+    print(f"Saved {out_path}")
+
+
 def make_active_region_hist(step_df, out_path):
     """Per-event energy deposited in the active (sense) layer."""
     label = DISPLAY_NAMES.get(ACTIVE, ACTIVE)
@@ -221,8 +247,9 @@ def main():
     totals = make_layer_breakdown(step_df, n_primaries, SOURCE_LABEL, OUT_BARS)
     print("Layer totals (MeV):", {k: round(v, 4) for k, v in totals.items()})
 
-    # Per-event deposition in the active (sense) layer.
+    # Per-event deposition in the active (sense) layer, and all layers overlaid.
     make_active_region_hist(step_df, OUT_ACTIVE)
+    make_per_event_all_layers(step_df, OUT_PEREVENT)
 
     with open(OUT_GEOM, "w") as f:
         f.write(geom_text + "\n")
