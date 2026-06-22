@@ -26,7 +26,16 @@ SPECTRUM  = os.path.join(HERE, "..", "data", "pube_bare_LLNL_PNL_lethargy.txt")
 OUT_PNG   = os.path.join(HERE, "pube_deposition_summary.png")
 OUT_GEOM  = os.path.join(HERE, "detector_geometry.txt")   # copy kept beside the figure
 
-ABSORBER = "PEN"   # dominant neutron-interaction volume in the FORD stack
+ABSORBER = "PEN"          # dominant neutron-interaction volume in the FORD stack
+ACTIVE   = "PEDOT_PSS"    # active / sense (charge-collection) layer
+LAYERS   = ["PEN", "PEDOT_PSS", "Parylene_C"]   # all detector layers, for the breakdown
+SOURCE_LABEL = "PuBe (LLNL/PNL)"
+
+# Pretty labels for figures (internal G4 volume names stay PEN / PEDOT_PSS / Parylene_C).
+DISPLAY_NAMES = {"PEN": "PEN", "PEDOT_PSS": "PEDOT:PSS", "Parylene_C": "Parylene-C"}
+
+OUT_BARS   = os.path.join(HERE, "layer_deposition_breakdown.png")
+OUT_ACTIVE = os.path.join(HERE, "active_region_deposition.png")
 
 
 def load_geometry(path):
@@ -108,6 +117,74 @@ def panel_geometry(ax, geom_text):
             family="monospace", fontsize=7)
 
 
+def make_layer_breakdown(step_df, n_primaries, source_label, out_path):
+    """Bar chart of total energy deposited in each detector layer."""
+    totals = [float(step_df.loc[step_df["Volume"] == L, "Edep"].sum()) for L in LAYERS]
+    colors = ["goldenrod", "navy", "seagreen"]
+
+    fig, ax = plt.subplots(figsize=(7, 5.5))
+    x = np.arange(len(LAYERS))
+    ax.bar(x, totals, width=0.6, color=colors)
+    ax.set_yscale("log")
+    ax.set_xticks(x)
+    ax.set_xticklabels([DISPLAY_NAMES.get(L, L) for L in LAYERS])
+    ax.set_ylabel("Total energy deposited (MeV)")
+    ax.set_title(f"Layer-by-layer energy deposition - {source_label}")
+    ax.grid(axis="y", alpha=0.3, which="both")
+    ax.set_axisbelow(True)
+
+    top = max(totals) if max(totals) > 0 else 1.0
+    floor = top * 1e-4
+    for xi, v in zip(x, totals):
+        per = (v / n_primaries * 1e3) if n_primaries else 0.0  # keV per primary
+        ax.text(xi, max(v, floor), f"  {v:.4g} MeV\n  {per:.3g} keV/primary",
+                ha="center", va="bottom", fontsize=8.5)
+    ax.set_ylim(floor, top * 5)
+
+    fig.text(0.99, 0.01, f"{int(n_primaries):,} primaries", ha="right", fontsize=7,
+             color="gray")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=130)
+    print(f"Saved {out_path}")
+    return dict(zip(LAYERS, totals))
+
+
+def make_active_region_hist(step_df, out_path):
+    """Per-event energy deposited in the active (sense) layer."""
+    label = DISPLAY_NAMES.get(ACTIVE, ACTIVE)
+    act = step_df[step_df["Volume"] == ACTIVE]
+    per_event = act.groupby("EventID")["Edep"].sum()
+    vals_kev = (per_event[per_event > 0] * 1000.0).to_numpy()   # keV (deposits are small)
+    n = len(vals_kev)
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    if n > 0:
+        hi = max(20.0, float(np.percentile(vals_kev, 99)))
+        nbins = int(np.clip(n // 10, 10, 50))   # avoid over-binning sparse data
+        ax.hist(vals_kev, bins=nbins, range=(0, hi), histtype="stepfilled",
+                alpha=0.7, color="navy")
+        ax.text(0.97, 0.95,
+                f"{n} events with deposit\nmean {vals_kev.mean():.1f} keV\nmax {vals_kev.max():.1f} keV",
+                transform=ax.transAxes, ha="right", va="top", fontsize=9)
+        if n < 500:
+            ax.text(0.5, 0.5, "LOW STATISTICS\n(few active-layer events)",
+                    transform=ax.transAxes, ha="center", va="center",
+                    fontsize=13, color="firebrick", alpha=0.35, rotation=20)
+    else:
+        ax.text(0.5, 0.5, "no deposition in active region",
+                transform=ax.transAxes, ha="center", va="center")
+
+    ax.set_title(f"Per-event energy deposition in active region ({label})")
+    ax.set_xlabel("Energy deposited per event (keV)")
+    ax.set_ylabel("Events")
+    ax.grid(alpha=0.2)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=130)
+    print(f"Saved {out_path} ({n} active-region events)")
+    return n
+
+
 def main():
     if not os.path.exists(ROOT_FILE):
         raise SystemExit(f"ROOT file not found: {ROOT_FILE}\nRun the simulation first.")
@@ -137,6 +214,15 @@ def main():
     fig.tight_layout(rect=[0, 0, 1, 0.97])
     fig.savefig(OUT_PNG, dpi=130)
     print(f"Saved {OUT_PNG}")
+
+    # Layer-by-layer deposition breakdown (its own figure).
+    counts, _ = file["SourceEnergy"].to_numpy()
+    n_primaries = counts.sum()
+    totals = make_layer_breakdown(step_df, n_primaries, SOURCE_LABEL, OUT_BARS)
+    print("Layer totals (MeV):", {k: round(v, 4) for k, v in totals.items()})
+
+    # Per-event deposition in the active (sense) layer.
+    make_active_region_hist(step_df, OUT_ACTIVE)
 
     with open(OUT_GEOM, "w") as f:
         f.write(geom_text + "\n")
