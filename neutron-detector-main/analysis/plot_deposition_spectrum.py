@@ -32,6 +32,8 @@ ACTIVE   = "PEDOT_PSS"    # active / sense (charge-collection) layer
 LAYERS   = ["PEN", "PEDOT_PSS", "Parylene_C"]
 DISPLAY_NAMES = {"PEN": "PEN", "PEDOT_PSS": "PEDOT:PSS", "Parylene_C": "Parylene-C"}
 LAYER_COLORS  = {"PEN": "goldenrod", "PEDOT_PSS": "navy", "Parylene_C": "seagreen"}
+# Poster colors for the per-event overlay figure only (per_event_all_layers_*).
+PEREVENT_COLORS = {"PEN": "black", "PEDOT_PSS": "#558ED5", "Parylene_C": "gray"}
 
 SOURCES = {
     "pube":  {"root": "pube_100M.root",  "label": "PuBe (LLNL/PNL)",
@@ -167,18 +169,17 @@ def make_per_event_all_layers(step_df, source_label, out_path):
         per_event = step_df[step_df["Volume"] == L].groupby("EventID")["Edep"].sum()
         vals_kev = (per_event[per_event > 0] * 1000.0).to_numpy()
         if len(vals_kev):
-            ax.hist(vals_kev, bins=bins, histtype="step", lw=2, color=LAYER_COLORS[L],
-                    label=f"{DISPLAY_NAMES.get(L, L)}  ({len(vals_kev)} events)")
+            ax.hist(vals_kev, bins=bins, histtype="step", lw=2, color=PEREVENT_COLORS[L],
+                    label=DISPLAY_NAMES.get(L, L))
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("Energy deposited per event (keV)")
     ax.set_ylabel("Events / bin")
-    ax.set_title(f"Per-event energy deposition by layer - {source_label}")
-    ax.legend()
+    ax.legend(loc="upper left")
     ax.grid(alpha=0.2, which="both")
     ax.set_axisbelow(True)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=130)
+    fig.savefig(out_path, dpi=300)
     print(f"Saved {out_path}")
 
 
