@@ -36,15 +36,18 @@ LAYER_COLORS  = {"PEN": "goldenrod", "PEDOT_PSS": "navy", "Parylene_C": "seagree
 PEREVENT_COLORS = {"PEN": "black", "PEDOT_PSS": "#558ED5", "Parylene_C": "gray"}
 
 SOURCES = {
-    "pube":  {"root": "pube_100M.root",  "label": "PuBe (LLNL/PNL)",
-              "overlay_spectrum": True,  "source_xlim": (0, 12)},
-    "cs137": {"root": "cs137_100M.root", "label": "Cs-137 (662 keV gamma)",
-              "overlay_spectrum": False, "source_xlim": (0, 1.5)},
+    "pube":  {"label": "PuBe (LLNL/PNL)",        "overlay_spectrum": True,  "source_xlim": (0, 12)},
+    "cs137": {"label": "Cs-137 (662 keV gamma)", "overlay_spectrum": False, "source_xlim": (0, 1.5)},
+}
+# Irradiation orientation: which face of the stack the beam enters first.
+ORIENTATIONS = {
+    "device":    "device-side (Parylene-C front)",   # Parylene -> PEDOT -> PEN
+    "substrate": "substrate-side (PEN front)",       # PEN -> PEDOT -> Parylene (device flipped)
 }
 
 
-def out(name, src):
-    return os.path.join(HERE, f"{name}_{src}.png")
+def out(name, src, orient):
+    return os.path.join(HERE, f"{name}_{src}_{orient}.png")
 
 
 def load_geometry(path):
@@ -220,17 +223,20 @@ def make_active_region_hist(step_df, source_label, out_path):
 
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else "pube"
+    orient = sys.argv[2] if len(sys.argv) > 2 else "device"
     if src not in SOURCES:
         raise SystemExit(f"Unknown source '{src}'. Choose from {list(SOURCES)}.")
+    if orient not in ORIENTATIONS:
+        raise SystemExit(f"Unknown orientation '{orient}'. Choose from {list(ORIENTATIONS)}.")
     cfg = SOURCES[src]
-    root_file = os.path.join(BUILD, cfg["root"])
+    root_file = os.path.join(BUILD, f"{src}_100M_{orient}.root")
     if not os.path.exists(root_file):
-        raise SystemExit(f"ROOT file not found: {root_file}\nRun the {src} simulation first.")
-    label = cfg["label"]
-    print(f"Source: {src} ({label})  <-  {root_file}")
+        raise SystemExit(f"ROOT file not found: {root_file}\nRun the {src}/{orient} simulation first.")
+    label = f"{cfg['label']}, {ORIENTATIONS[orient]}"
+    print(f"Source: {src}/{orient} ({label})  <-  {root_file}")
 
     file = uproot.open(root_file)
-    geom_text = load_geometry(GEOM_FILE)
+    geom_text = load_geometry(os.path.join(BUILD, f"detector_geometry_{orient}.txt"))
 
     raw = file["StepData"].arrays(
         ["EventID", "TrackID", "EnergyDeposit", "VolumeName",
@@ -250,18 +256,18 @@ def main():
     panel_geometry(axes[1, 1], geom_text)
     fig.suptitle(f"{label} response - FORD organic detector", fontsize=14, fontweight="bold")
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    summary_path = out("deposition_summary", src)
+    summary_path = out("deposition_summary", src, orient)
     fig.savefig(summary_path, dpi=130)
     print(f"Saved {summary_path}")
 
     counts, _ = file["SourceEnergy"].to_numpy()
     n_primaries = counts.sum()
-    totals = make_layer_breakdown(step_df, n_primaries, label, out("layer_deposition_breakdown", src))
+    totals = make_layer_breakdown(step_df, n_primaries, label, out("layer_deposition_breakdown", src, orient))
     print("Layer totals (MeV):", {k: round(v, 4) for k, v in totals.items()})
-    make_active_region_hist(step_df, label, out("active_region_deposition", src))
-    make_per_event_all_layers(step_df, label, out("per_event_all_layers", src))
+    make_active_region_hist(step_df, label, out("active_region_deposition", src, orient))
+    make_per_event_all_layers(step_df, label, out("per_event_all_layers", src, orient))
 
-    geom_copy = os.path.join(HERE, "detector_geometry.txt")
+    geom_copy = os.path.join(HERE, f"detector_geometry_{orient}.txt")
     with open(geom_copy, "w") as f:
         f.write(geom_text + "\n")
     print(f"Saved {geom_copy}")
