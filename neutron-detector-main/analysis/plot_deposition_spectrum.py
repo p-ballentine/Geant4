@@ -17,6 +17,7 @@ thin PEDOT:PSS sense layer and parylene-C deposit much less.
 """
 import os
 import sys
+import glob
 import numpy as np
 import uproot
 import pandas as pd
@@ -57,9 +58,42 @@ def load_geometry(path):
         return f.read().rstrip()
 
 
-def panel_source(ax, file, cfg):
+def resolve_inputs(src, orient):
+    """Return the ROOT file(s) for a (source, orientation): checkpoint batch
+    files (<src>_<orient>_runNN.root) if present, else a single combined file."""
+    batch = sorted(glob.glob(os.path.join(BUILD, f"{src}_{orient}_run*.root")))
+    if batch:
+        return batch
+    single = os.path.join(BUILD, f"{src}_100M_{orient}.root")
+    return [single] if os.path.exists(single) else []
+
+
+def load_data(files):
+    """Read StepData + SourceEnergy from one or more files. Event IDs are offset
+    per file so events from different batches stay distinct; the source histogram
+    is summed across files."""
+    cols = ["EventID", "TrackID", "EnergyDeposit", "VolumeName",
+            "ParticleName", "CreatorProcess", "KineticEnergy"]
+    dec = lambda a: np.array([x.decode() if isinstance(x, bytes) else x for x in a])
+    frames, h1c, h1e, offset = [], None, None, 0
+    for fn in files:
+        f = uproot.open(fn)
+        raw = f["StepData"].arrays(cols, library="np")
+        eid = raw["EventID"]
+        frames.append(pd.DataFrame({
+            "EventID": eid + offset, "TrackID": raw["TrackID"],
+            "Edep": raw["EnergyDeposit"], "Volume": dec(raw["VolumeName"]),
+            "Particle": dec(raw["ParticleName"]), "Process": dec(raw["CreatorProcess"]),
+            "KineticEnergy": raw["KineticEnergy"],
+        }))
+        c, h1e = f["SourceEnergy"].to_numpy()
+        h1c = c if h1c is None else h1c + c
+        offset += (int(eid.max()) + 1) if len(eid) else 0
+    return pd.concat(frames, ignore_index=True), h1c, h1e
+
+
+def panel_source(ax, counts, edges, cfg):
     """(A) Sampled source spectrum (overlaid on the input table for PuBe)."""
-    counts, edges = file["SourceEnergy"].to_numpy()
     centers = 0.5 * (edges[:-1] + edges[1:])
     width = edges[1] - edges[0]
     ax.step(centers, counts, where="mid", color="navy", lw=1.5, label="Sampled (sim)")
@@ -229,28 +263,17 @@ def main():
     if orient not in ORIENTATIONS:
         raise SystemExit(f"Unknown orientation '{orient}'. Choose from {list(ORIENTATIONS)}.")
     cfg = SOURCES[src]
-    root_file = os.path.join(BUILD, f"{src}_100M_{orient}.root")
-    if not os.path.exists(root_file):
-        raise SystemExit(f"ROOT file not found: {root_file}\nRun the {src}/{orient} simulation first.")
+    files = resolve_inputs(src, orient)
+    if not files:
+        raise SystemExit(f"No ROOT data for {src}/{orient} in {BUILD}.\nRun the simulation first.")
     label = f"{cfg['label']}, {ORIENTATIONS[orient]}"
-    print(f"Source: {src}/{orient} ({label})  <-  {root_file}")
+    print(f"Source: {src}/{orient} ({label})  <-  {len(files)} file(s)")
 
-    file = uproot.open(root_file)
+    step_df, h1_counts, h1_edges = load_data(files)
     geom_text = load_geometry(os.path.join(BUILD, f"detector_geometry_{orient}.txt"))
 
-    raw = file["StepData"].arrays(
-        ["EventID", "TrackID", "EnergyDeposit", "VolumeName",
-         "ParticleName", "CreatorProcess", "KineticEnergy"], library="np")
-    dec = lambda a: np.array([x.decode() if isinstance(x, bytes) else x for x in a])
-    step_df = pd.DataFrame({
-        "EventID": raw["EventID"], "TrackID": raw["TrackID"],
-        "Edep": raw["EnergyDeposit"], "Volume": dec(raw["VolumeName"]),
-        "Particle": dec(raw["ParticleName"]), "Process": dec(raw["CreatorProcess"]),
-        "KineticEnergy": raw["KineticEnergy"],
-    })
-
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
-    panel_source(axes[0, 0], file, cfg)
+    panel_source(axes[0, 0], h1_counts, h1_edges, cfg)
     panel_deposition(axes[0, 1], step_df)
     panel_secondary(axes[1, 0], step_df)
     panel_geometry(axes[1, 1], geom_text)
@@ -260,8 +283,7 @@ def main():
     fig.savefig(summary_path, dpi=130)
     print(f"Saved {summary_path}")
 
-    counts, _ = file["SourceEnergy"].to_numpy()
-    n_primaries = counts.sum()
+    n_primaries = h1_counts.sum()
     totals = make_layer_breakdown(step_df, n_primaries, label, out("layer_deposition_breakdown", src, orient))
     print("Layer totals (MeV):", {k: round(v, 4) for k, v in totals.items()})
     make_active_region_hist(step_df, label, out("active_region_deposition", src, orient))

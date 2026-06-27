@@ -1,14 +1,25 @@
 #include "RunAction.hh"
+#include "RunActionMessenger.hh"
 #include "G4RunManager.hh"
 #include "G4Run.hh"
 #include "G4AnalysisManager.hh"
 #include "G4SystemOfUnits.hh"
+#include "Randomize.hh"
 
-RunAction::RunAction() : G4UserRunAction() {
+#include <sstream>
+#include <iomanip>
+
+RunAction::RunAction()
+    : G4UserRunAction(),
+      fMessenger(nullptr),
+      fFilePrefix("neutron_analysis"),
+      fBatchOffset(0)
+{
+    fMessenger = new RunActionMessenger(this);
+
     auto analysisManager = G4AnalysisManager::Instance();
     analysisManager->SetActivation(true);
     analysisManager->SetVerboseLevel(1);
-    analysisManager->SetFileName("neutron_analysis.root");
     analysisManager->SetNtupleMerging(true);
 
     // Create ntuple for step-by-step data
@@ -44,11 +55,25 @@ RunAction::RunAction() : G4UserRunAction() {
                               240, 0., 12.);
 }
 
-RunAction::~RunAction() {}
+RunAction::~RunAction() {
+    delete fMessenger;
+}
 
-void RunAction::BeginOfRunAction(const G4Run*) {
+void RunAction::BeginOfRunAction(const G4Run* run) {
+    // Checkpointing: each /run/beamOn batch is one G4Run with an incrementing
+    // run ID. Give each its own output file and its own deterministic seed, so
+    // batches are independent, reproducible, and an interruption only costs the
+    // batch in progress.
+    G4int batch = run->GetRunID() + fBatchOffset;
+    CLHEP::HepRandom::setTheSeed(987654321L + 1000003L * batch);
+
+    std::ostringstream fn;
+    fn << fFilePrefix << "_run" << std::setw(2) << std::setfill('0') << batch << ".root";
+
     auto analysisManager = G4AnalysisManager::Instance();
+    analysisManager->SetFileName(fn.str());
     analysisManager->OpenFile();
+    G4cout << "RunAction: batch " << batch << " -> " << fn.str() << G4endl;
 }
 
 void RunAction::EndOfRunAction(const G4Run*) {

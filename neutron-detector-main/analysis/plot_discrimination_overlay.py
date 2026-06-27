@@ -21,6 +21,7 @@ active_region_deposition_* plots.
 """
 import os
 import sys
+import glob
 import numpy as np
 import uproot
 import pandas as pd
@@ -40,13 +41,23 @@ ORIENTATIONS = {"device": "device-side (Parylene-C front)",
 
 
 def per_event_kev(src_key, orient):
-    """Per-event energy deposited in PEDOT:PSS [keV] (sum over the layer's steps)."""
-    f = uproot.open(os.path.join(BUILD, f"{src_key}_100M_{orient}.root"))
-    a = f["StepData"].arrays(["EventID", "EnergyDeposit", "VolumeName"], library="np")
-    vol = np.array([v.decode() if isinstance(v, bytes) else v for v in a["VolumeName"]])
-    m = vol == ACTIVE
-    per = pd.Series(a["EnergyDeposit"][m]).groupby(pd.Series(a["EventID"][m])).sum() * 1000.0
-    return per[per > 0].to_numpy()
+    """Per-event energy deposited in PEDOT:PSS [keV], across checkpoint batches.
+    Reads <src>_<orient>_runNN.root if present, else the single combined file."""
+    files = sorted(glob.glob(os.path.join(BUILD, f"{src_key}_{orient}_run*.root")))
+    if not files:
+        single = os.path.join(BUILD, f"{src_key}_100M_{orient}.root")
+        files = [single] if os.path.exists(single) else []
+    if not files:
+        raise SystemExit(f"No ROOT data for {src_key}/{orient} in {BUILD}.")
+    out = []
+    for fn in files:
+        f = uproot.open(fn)
+        a = f["StepData"].arrays(["EventID", "EnergyDeposit", "VolumeName"], library="np")
+        vol = np.array([v.decode() if isinstance(v, bytes) else v for v in a["VolumeName"]])
+        m = vol == ACTIVE
+        per = pd.Series(a["EnergyDeposit"][m]).groupby(pd.Series(a["EventID"][m])).sum() * 1000.0
+        out.append(per[per > 0].to_numpy())
+    return np.concatenate(out) if out else np.array([])
 
 
 def main():
@@ -59,7 +70,7 @@ def main():
         s["n"], s["mean"], s["max"] = len(v), v.mean(), v.max()
         s["n_below"] = int((v < DISP_FLOOR_KEV).sum())
         print(f"{s['name']}: N={s['n']}, mean={s['mean']:.2f} keV, max={s['max']:.1f} keV "
-              f"(from {s['key']}_100M_{orient}.root, StepData PEDOT_PSS per-event sum); "
+              f"(from {s['key']}/{orient} data, StepData PEDOT_PSS per-event sum); "
               f"{s['n_below']} events < {DISP_FLOOR_KEV*1e3:.0f} eV excluded from display")
 
     hi = max(s["max"] for s in SOURCES) * 1.1
