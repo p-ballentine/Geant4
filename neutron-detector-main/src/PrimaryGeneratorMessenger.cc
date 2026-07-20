@@ -17,9 +17,9 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGenerator* generator
     fDir->SetGuidance("Neutron source configuration");
 
     fTypeCmd = new G4UIcmdWithAString("/source/type", this);
-    fTypeCmd->SetGuidance("Select the source: 'mono', 'pube', or 'cs137'.");
+    fTypeCmd->SetGuidance("Select the source: 'mono', 'pube', 'cs137', or 'xray'.");
     fTypeCmd->SetParameterName("type", false);
-    fTypeCmd->SetCandidates("mono pube cs137");
+    fTypeCmd->SetCandidates("mono pube cs137 xray");
     fTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
     fMonoCmd = new G4UIcmdWithADoubleAndUnit("/source/monoEnergy", this);

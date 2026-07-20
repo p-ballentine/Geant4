@@ -20,7 +20,8 @@ PrimaryGenerator::PrimaryGenerator()
       fGamma(nullptr),
       fSourceMode(SourceMode::PuBe),
       fMonoEnergy(2.5*MeV),
-      fSpectrumFile("data/pube_bare_LLNL_PNL_lethargy.txt")
+      fSpectrumFile("data/pube_bare_LLNL_PNL_lethargy.txt"),
+      fXraySpectrumFile("data/xray_90kV_W_0p1mmCu.txt")
 {
     fParticleGun = new G4ParticleGun(1);
 
@@ -32,8 +33,9 @@ PrimaryGenerator::PrimaryGenerator()
 
     fMessenger = new PrimaryGeneratorMessenger(this);
 
-    // Load the default PuBe spectrum so 'pube' mode works out of the box.
+    // Load the default spectra so 'pube' and 'xray' modes work out of the box.
     LoadSpectrum(fSpectrumFile);
+    LoadXraySpectrum(fXraySpectrumFile);
 }
 
 PrimaryGenerator::~PrimaryGenerator()
@@ -50,6 +52,8 @@ void PrimaryGenerator::SetSourceMode(const G4String& name)
         fSourceMode = SourceMode::PuBe;
     } else if (name == "cs137") {
         fSourceMode = SourceMode::Cs137;
+    } else if (name == "xray") {
+        fSourceMode = SourceMode::Xray;
     } else {
         G4Exception("PrimaryGenerator::SetSourceMode", "BadMode", JustWarning,
                     ("Unknown source type '" + name + "'; keeping current mode.").c_str());
@@ -140,23 +144,79 @@ void PrimaryGenerator::LoadSpectrum(const G4String& file)
            << energy.back()/MeV << " MeV)." << G4endl;
 }
 
-G4double PrimaryGenerator::SampleEnergy() const
+G4double PrimaryGenerator::SampleFromCdf(const std::vector<G4double>& e,
+                                         const std::vector<G4double>& cdf)
 {
-    if (fSourceMode == SourceMode::Mono || fSpecCdf.empty()) {
-        return fMonoEnergy;
-    }
-
     // Inverse-CDF sampling with linear interpolation within the chosen segment.
     G4double u = G4UniformRand();
-    std::size_t lo = 0, hi = fSpecCdf.size() - 1;
+    std::size_t lo = 0, hi = cdf.size() - 1;
     while (lo + 1 < hi) {
         std::size_t mid = (lo + hi) / 2;
-        if (fSpecCdf[mid] <= u) lo = mid; else hi = mid;
+        if (cdf[mid] <= u) lo = mid; else hi = mid;
     }
-    G4double c0 = fSpecCdf[lo], c1 = fSpecCdf[hi];
-    G4double e0 = fSpecEnergy[lo], e1 = fSpecEnergy[hi];
+    G4double c0 = cdf[lo], c1 = cdf[hi];
     G4double frac = (c1 > c0) ? (u - c0) / (c1 - c0) : 0.;
-    return e0 + frac * (e1 - e0);
+    return e[lo] + frac * (e[hi] - e[lo]);
+}
+
+G4double PrimaryGenerator::SampleEnergy() const
+{
+    if (fSourceMode == SourceMode::Mono || fSpecCdf.empty()) return fMonoEnergy;
+    return SampleFromCdf(fSpecEnergy, fSpecCdf);
+}
+
+G4double PrimaryGenerator::SampleXrayEnergy() const
+{
+    if (fXrayCdf.empty()) return fMonoEnergy;
+    return SampleFromCdf(fXrayEnergy, fXrayCdf);
+}
+
+void PrimaryGenerator::LoadXraySpectrum(const G4String& file)
+{
+    G4String path = ResolveDataPath(file);
+    std::ifstream in(path.c_str());
+    if (!in.is_open()) {
+        G4Exception("PrimaryGenerator::LoadXraySpectrum", "NoXray", JustWarning,
+                    ("Could not open X-ray spectrum file: " + file).c_str());
+        return;
+    }
+
+    // Read (energy [keV], relative intensity dN/dE) pairs, skipping '#' comments.
+    // Unlike the PuBe table, column 2 is already dN/dE, so no lethargy factor.
+    std::vector<G4double> energy, pdf;
+    G4String line;
+    while (std::getline(in, line)) {
+        std::size_t hash = line.find('#');
+        if (hash != G4String::npos) line = line.substr(0, hash);
+        std::istringstream iss(line);
+        G4double e_keV, w;
+        if (iss >> e_keV >> w) {
+            energy.push_back(e_keV * keV);
+            pdf.push_back(w);
+        }
+    }
+    in.close();
+
+    if (energy.size() < 2) {
+        G4Exception("PrimaryGenerator::LoadXraySpectrum", "BadXray", JustWarning,
+                    ("X-ray spectrum has too few points: " + path).c_str());
+        return;
+    }
+
+    const std::size_t n = energy.size();
+    fXrayEnergy.assign(energy.begin(), energy.end());
+    fXrayCdf.assign(n, 0.);
+    for (std::size_t i = 1; i < n; ++i) {
+        G4double dE = energy[i] - energy[i-1];
+        fXrayCdf[i] = fXrayCdf[i-1] + 0.5 * (pdf[i] + pdf[i-1]) * dE;
+    }
+    G4double total = fXrayCdf.back();
+    if (total <= 0.) { fXrayEnergy.clear(); fXrayCdf.clear(); return; }
+    for (auto& c : fXrayCdf) c /= total;
+
+    G4cout << "PrimaryGenerator: loaded X-ray spectrum '" << path << "' ("
+           << n << " points, " << energy.front()/keV << " - "
+           << energy.back()/keV << " keV)." << G4endl;
 }
 
 void PrimaryGenerator::GeneratePrimaries(G4Event* event)
@@ -172,6 +232,9 @@ void PrimaryGenerator::GeneratePrimaries(G4Event* event)
     if (fSourceMode == SourceMode::Cs137) {
         particle = fGamma;
         energy = 661.7*keV;          // Cs-137 / Ba-137m gamma line
+    } else if (fSourceMode == SourceMode::Xray) {
+        particle = fGamma;
+        energy = SampleXrayEnergy();
     } else if (fSourceMode == SourceMode::PuBe) {
         energy = SampleEnergy();
     }

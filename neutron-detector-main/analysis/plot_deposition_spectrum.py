@@ -39,6 +39,7 @@ PEREVENT_COLORS = {"PEN": "black", "PEDOT_PSS": "#558ED5", "Parylene_C": "gray"}
 SOURCES = {
     "pube":  {"label": "PuBe (LLNL/PNL)",        "overlay_spectrum": True,  "source_xlim": (0, 12)},
     "cs137": {"label": "Cs-137 (662 keV gamma)", "overlay_spectrum": False, "source_xlim": (0, 1.5)},
+    "xray":  {"label": "X-ray (90 kVp W + 0.1mm Cu)", "overlay_spectrum": False, "source_xlim": (0, 0.1)},
 }
 # Irradiation orientation: which face of the stack the beam enters first.
 ORIENTATIONS = {

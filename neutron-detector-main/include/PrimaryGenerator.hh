@@ -14,12 +14,13 @@ class PrimaryGeneratorMessenger;
 //   - Mono:  fixed monoenergetic neutron (validation / cross-checks)
 //   - PuBe:  neutron energy sampled per event from a tabulated PuBe spectrum
 //   - Cs137: 661.7 keV monoenergetic gamma (Cs-137 gamma response)
+//   - Xray:  photon energy sampled per event from a tabulated X-ray tube spectrum
 // The mode and parameters are controllable at run time via /source/ macro
 // commands (see PrimaryGeneratorMessenger).
 class PrimaryGenerator : public G4VUserPrimaryGeneratorAction
 {
 public:
-    enum class SourceMode { Mono, PuBe, Cs137 };
+    enum class SourceMode { Mono, PuBe, Cs137, Xray };
 
     PrimaryGenerator();
     virtual ~PrimaryGenerator();
@@ -33,9 +34,13 @@ public:
     void SetSpectrumFile(const G4String& file);   // (re)loads immediately
 
 private:
-    G4double SampleEnergy() const;                // energy for the next primary
-    void LoadSpectrum(const G4String& file);      // fills fSpecEnergy / fSpecCdf
+    G4double SampleEnergy() const;                 // PuBe neutron energy
+    G4double SampleXrayEnergy() const;             // X-ray photon energy
+    void LoadSpectrum(const G4String& file);       // PuBe: fills fSpecEnergy/fSpecCdf
+    void LoadXraySpectrum(const G4String& file);   // X-ray: fills fXrayEnergy/fXrayCdf
     G4String ResolveDataPath(const G4String& file) const;
+    static G4double SampleFromCdf(const std::vector<G4double>& e,
+                                  const std::vector<G4double>& cdf);
 
     G4ParticleGun* fParticleGun;
     PrimaryGeneratorMessenger* fMessenger;
@@ -45,10 +50,12 @@ private:
     SourceMode fSourceMode;
     G4double   fMonoEnergy;
     G4String   fSpectrumFile;
+    G4String   fXraySpectrumFile;
 
-    // Tabulated PuBe spectrum prepared for inverse-CDF sampling in energy.
-    std::vector<G4double> fSpecEnergy;  // neutron energy nodes (G4 internal units)
-    std::vector<G4double> fSpecCdf;     // normalized cumulative distribution [0,1]
+    // Tabulated PuBe (per-lethargy) and X-ray (dN/dE) spectra, prepared for
+    // inverse-CDF sampling in energy.
+    std::vector<G4double> fSpecEnergy, fSpecCdf;   // PuBe neutron
+    std::vector<G4double> fXrayEnergy, fXrayCdf;   // X-ray photon
 };
 
 #endif
